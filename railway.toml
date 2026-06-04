@@ -2,27 +2,12 @@
 builder = "nixpacks"
 buildCommand = "pip install -e . && pip install -e apps/mcp && pip install -e apps/gsc-agent"
 
-# ── GSC Agent (daily cron) ────────────────────────────────────────────────────
-# Runs at 06:00 UTC every day.
-# GSC data is 2-3 days delayed, so this reliably captures yesterday's final numbers.
-[[services]]
-name = "gsc-agent"
-
-[services.deploy]
-cronSchedule = "0 6 * * *"
+[deploy]
 startCommand = "python -m gsc_agent.agent"
+cronSchedule = "0 6 * * *"
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 3
 
-# ── MCP Server ────────────────────────────────────────────────────────────────
-# Long-running stdio server. Only needed if you expose the MCP to a hosted client.
-# Leave commented out if you run the MCP locally via Claude Desktop.
-# [[services]]
-# name = "mcp-server"
-# [services.deploy]
-# startCommand = "bookshopnearme-mcp"
-
-# ── Environment overrides ─────────────────────────────────────────────────────
 [environments.production.variables]
 ENVIRONMENT = "production"
 LOG_LEVEL = "INFO"
