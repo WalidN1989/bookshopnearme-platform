@@ -1,0 +1,37 @@
+name: bookshopnearme
+displayName: BookShopNearMe.lk Catalog
+description: >
+  Search and explore the BookShopNearMe.lk book catalog.
+  Find books by title, author, ISBN, or category. Get catalog statistics.
+version: "0.1.0"
+homepage: https://bookshopnearme.lk
+license: MIT
+
+server:
+  type: stdio
+  command: bookshopnearme-mcp
+
+tools:
+  - name: search_books
+    description: Search the catalog by title, author, or keyword
+  - name: get_book
+    description: Get full details for a book by ID
+  - name: search_by_isbn
+    description: Look up a book by ISBN-10 or ISBN-13
+  - name: find_books_by_author
+    description: Find all books by a specific author
+  - name: find_books_by_category
+    description: Browse books in a category or genre
+  - name: catalog_stats
+    description: Get catalog aggregate statistics
+
+config:
+  env:
+    BOOKS_API_BASE_URL:
+      description: Base URL for the books API
+      default: "https://pthcjxgnaycbjrlsjhbt.supabase.co/functions/v1/public-books-api"
+      required: false
+    BOOKS_API_TIMEOUT:
+      description: Request timeout in seconds
+      default: "60"
+      required: false

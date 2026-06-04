@@ -1,0 +1,22 @@
+name: bookshopnearme-mcp
+title: BookShopNearMe.lk Book Catalog
+description: >
+  MCP server that provides access to the BookShopNearMe.lk catalog —
+  a Sri Lankan online bookstore. Search by title, author, ISBN, or category.
+version: "0.1.0"
+author: BookShopNearMe.lk
+license: MIT
+homepage: https://bookshopnearme.lk
+
+runtime:
+  type: python
+  command: bookshopnearme-mcp
+  python_version: "3.12"
+
+install:
+  pip: bookshopnearme-mcp
+
+capabilities:
+  tools: true
+  resources: false
+  prompts: false

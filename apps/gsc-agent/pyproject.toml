@@ -1,0 +1,20 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "bookshopnearme-gsc-agent"
+version = "0.1.0"
+description = "Google Search Console data collection agent for BookShopNearMe.lk"
+requires-python = ">=3.12"
+dependencies = [
+    "google-auth>=2.29.0",
+    "google-api-python-client>=2.127.0",
+    "schedule>=1.2.1",
+]
+
+[project.scripts]
+gsc-agent = "gsc_agent.agent:run"
+
+[tool.hatch.build.targets.wheel]
+packages = ["gsc_agent"]

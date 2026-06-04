@@ -1,0 +1,25 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Environment — never commit real credentials
+.env
+*.json
+!apps/mcp/glama.yaml
+!apps/mcp/smithery.yaml
+
+# Database (local dev only — Railway uses a Volume)
+data/
+
+# Test / tooling
+.pytest_cache/
+.coverage
+htmlcov/
+
+# macOS
+.DS_Store
