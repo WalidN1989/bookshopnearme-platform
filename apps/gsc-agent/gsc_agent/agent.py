@@ -3,6 +3,10 @@ from __future__ import annotations
 import sys
 import os
 
+# Absolute first output — confirms the process started before any imports run.
+# Visible in Railway deploy logs as soon as the container executes this file.
+print("[BOOT] gsc_agent.agent process started", flush=True)
+
 # Allow running from the apps/gsc-agent directory without installing
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 
