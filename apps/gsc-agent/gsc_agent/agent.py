@@ -11,7 +11,7 @@ from shared.database.connection import get_db
 from shared.logging.logger import AgentRunLogger, get_logger
 
 from gsc_agent.client import GSCClient
-from gsc_agent.credentials import resolve_credentials_path
+from gsc_agent.credentials import resolve_oauth_credentials
 from gsc_agent.ingestion import dates_to_collect, ingest_query_rows
 
 logger = get_logger("gsc_agent.agent")
@@ -35,11 +35,12 @@ def run() -> None:
         if not settings.gsc_site_url:
             raise ValueError("GSC_SITE_URL is not configured")
 
-        credentials_path = resolve_credentials_path()
+        credentials = resolve_oauth_credentials()   # logs: loaded + token refreshed
         client = GSCClient(
-            credentials_path=credentials_path,
+            credentials=credentials,
             site_url=settings.gsc_site_url,
         )
+        client.validate_access()                    # logs: property URL + permission level
 
         missing_dates = dates_to_collect(db=db, lookback_days=settings.gsc_lookback_days)
         logger.info(f"Dates to collect: {missing_dates}")

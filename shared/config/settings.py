@@ -14,8 +14,10 @@ class Settings:
     books_api_base_url: str
     books_api_timeout: int
 
-    # GSC
-    gsc_credentials_path: str
+    # GSC — OAuth refresh-token credentials
+    gsc_oauth_client_id: str
+    gsc_oauth_client_secret: str
+    gsc_oauth_refresh_token: str
     gsc_site_url: str
     gsc_lookback_days: int
 
@@ -35,7 +37,9 @@ class Settings:
         )
         self.books_api_timeout = int(os.getenv("BOOKS_API_TIMEOUT", "60"))
 
-        self.gsc_credentials_path = os.getenv("GSC_CREDENTIALS_PATH", "")
+        self.gsc_oauth_client_id = os.getenv("GSC_OAUTH_CLIENT_ID", "")
+        self.gsc_oauth_client_secret = os.getenv("GSC_OAUTH_CLIENT_SECRET", "")
+        self.gsc_oauth_refresh_token = os.getenv("GSC_OAUTH_REFRESH_TOKEN", "")
         self.gsc_site_url = os.getenv("GSC_SITE_URL", "")
         self.gsc_lookback_days = int(os.getenv("GSC_LOOKBACK_DAYS", "7"))
 
