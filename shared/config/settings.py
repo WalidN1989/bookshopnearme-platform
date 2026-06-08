@@ -14,6 +14,10 @@ class Settings:
     books_api_base_url: str
     books_api_timeout: int
 
+    # Supabase — persistent storage backend (Sprint 2+)
+    supabase_url: str
+    supabase_service_role_key: str
+
     # GSC — OAuth refresh-token credentials
     gsc_oauth_client_id: str
     gsc_oauth_client_secret: str
@@ -30,6 +34,9 @@ class Settings:
 
         db_path = os.getenv("DATABASE_PATH", str(self.project_root / "data" / "bookshop.db"))
         self.database_path = Path(db_path)
+
+        self.supabase_url = os.getenv("SUPABASE_URL", "")
+        self.supabase_service_role_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
 
         self.books_api_base_url = os.getenv(
             "BOOKS_API_BASE_URL",

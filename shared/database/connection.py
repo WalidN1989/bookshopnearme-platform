@@ -200,16 +200,37 @@ class DatabaseConnection:
         self.conn.commit()
 
 
-_instance: DatabaseConnection | None = None
+_instance: "DatabaseConnection | SupabaseConnection | None" = None
 
 
-def get_db(db_path: str | Path | None = None) -> DatabaseConnection:
+def get_db(db_path: str | Path | None = None) -> "DatabaseConnection | SupabaseConnection":
+    """
+    Return the active storage backend.
+
+    Selection logic (evaluated once, then cached as a singleton):
+      1. If SUPABASE_URL **and** SUPABASE_SERVICE_ROLE_KEY are both set →
+         return a SupabaseConnection (production path; Railway is stateless).
+      2. Otherwise → return a DatabaseConnection backed by the SQLite file at
+         *db_path* (local development path).
+
+    The *db_path* argument is ignored when Supabase is selected.
+    """
     global _instance
     if _instance is None:
-        if db_path is None:
-            from shared.config import get_settings
-            db_path = get_settings().database_path
-        _instance = DatabaseConnection(db_path)
+        import os
+
+        supabase_url = os.getenv("SUPABASE_URL", "")
+        supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+
+        if supabase_url and supabase_key:
+            from .supabase_connection import SupabaseConnection
+            _instance = SupabaseConnection(supabase_url, supabase_key)
+        else:
+            if db_path is None:
+                from shared.config import get_settings
+                db_path = get_settings().database_path
+            _instance = DatabaseConnection(db_path)
+
     return _instance
 
 

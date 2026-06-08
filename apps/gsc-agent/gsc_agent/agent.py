@@ -54,9 +54,10 @@ def run() -> None:
     try:
         print("[TRACE 10] loading settings", flush=True)
         settings = get_settings()
+        backend = "supabase" if settings.supabase_url else "sqlite"
         print(
             f"[TRACE 11] settings loaded — "
-            f"db={settings.database_path} "
+            f"backend={backend} "
             f"site={settings.gsc_site_url!r} "
             f"lookback={settings.gsc_lookback_days} "
             f"env={settings.environment}",
@@ -67,12 +68,12 @@ def run() -> None:
         traceback.print_exc(file=sys.stdout)
         sys.exit(1)
 
-    # ── STEP 2: open database ─────────────────────────────────────────────────
+    # ── STEP 2: connect to storage backend ───────────────────────────────────
     try:
-        print(f"[TRACE 12] opening database at {settings.database_path}", flush=True)
+        print(f"[TRACE 12] connecting to storage backend ({backend})", flush=True)
         db = get_db(settings.database_path)
-        db.connect()          # force connection + migrations now, not lazily
-        print("[TRACE 13] database open and migrations applied", flush=True)
+        db.connect()          # validates connectivity; runs SQLite migrations or pings Supabase
+        print("[TRACE 13] storage backend connected", flush=True)
     except Exception as exc:
         print(f"[TRACE ERROR] database failed: {exc}", flush=True)
         traceback.print_exc(file=sys.stdout)
