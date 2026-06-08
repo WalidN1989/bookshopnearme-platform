@@ -24,6 +24,14 @@ class SupabaseConnection:
             raise ValueError(
                 "SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must both be set."
             )
+
+        # Normalise the URL: supabase-py constructs the PostgREST path itself
+        # as <base>/rest/v1.  If the caller included /rest/v1/ in the URL
+        # (common mistake when copying from the Supabase API docs), supabase-py
+        # doubles it → .../rest/v1/rest/v1 → every request returns 404.
+        # Strip any trailing path components beyond the bare origin.
+        url = _normalise_supabase_url(url)
+
         # Lazy import so the shared package does not hard-require supabase
         # when only the MCP or local-SQLite path is used.
         try:
@@ -190,6 +198,26 @@ class SupabaseConnection:
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
+
+def _normalise_supabase_url(url: str) -> str:
+    """
+    Return the bare project origin that supabase-py expects.
+
+    supabase-py appends /rest/v1 to whatever URL you pass.  If the user
+    copied the URL from the Supabase API docs (which shows the full REST
+    endpoint), it already contains /rest/v1/ and supabase-py would produce
+    the doubled path  .../rest/v1/rest/v1  causing 404 on every call.
+
+    Strips known Supabase path suffixes so the result is always:
+        https://<ref>.supabase.co
+    """
+    from urllib.parse import urlparse, urlunparse
+
+    parsed = urlparse(url.rstrip("/"))
+    # Remove any path component — supabase-py only needs scheme + netloc
+    clean = urlunparse((parsed.scheme, parsed.netloc, "", "", "", ""))
+    return clean
+
 
 def _scalar_int(data: Any) -> int:
     """
