@@ -3,10 +3,12 @@ from __future__ import annotations
 from shared.database.connection import DatabaseConnection
 from shared.database.migrations import run_migrations
 
+SITE_A = "https://bookshopnearme.lk/"
+SITE_B = "https://period.lk/"
+
 
 def test_migrations_run_idempotent(tmp_db: DatabaseConnection):
     conn = tmp_db.connect()
-    # Running migrations a second time should apply 0 new migrations
     applied = run_migrations(conn)
     assert applied == 0
 
@@ -55,18 +57,18 @@ def test_agent_run_lifecycle(tmp_db: DatabaseConnection):
 
 
 def test_gsc_upsert_idempotent(tmp_db: DatabaseConnection):
-    qid1 = tmp_db.upsert_gsc_query("buy books sri lanka", "2026-01-01")
-    qid2 = tmp_db.upsert_gsc_query("buy books sri lanka", "2026-01-02")
+    qid1 = tmp_db.upsert_gsc_query("buy books sri lanka", "2026-01-01", SITE_A)
+    qid2 = tmp_db.upsert_gsc_query("buy books sri lanka", "2026-01-02", SITE_A)
     assert qid1 == qid2  # same row, same id
 
-    pid1 = tmp_db.upsert_gsc_page("https://bookshopnearme.lk/", "2026-01-01")
-    pid2 = tmp_db.upsert_gsc_page("https://bookshopnearme.lk/", "2026-01-02")
+    pid1 = tmp_db.upsert_gsc_page("https://bookshopnearme.lk/", "2026-01-01", SITE_A)
+    pid2 = tmp_db.upsert_gsc_page("https://bookshopnearme.lk/", "2026-01-02", SITE_A)
     assert pid1 == pid2
 
 
 def test_gsc_daily_metrics(tmp_db: DatabaseConnection):
-    qid = tmp_db.upsert_gsc_query("test query", "2026-01-01")
-    pid = tmp_db.upsert_gsc_page("https://example.com/page", "2026-01-01")
+    qid = tmp_db.upsert_gsc_query("test query", "2026-01-01", SITE_A)
+    pid = tmp_db.upsert_gsc_page("https://example.com/page", "2026-01-01", SITE_A)
 
     tmp_db.upsert_gsc_daily_metric(
         date="2026-01-01",
@@ -76,12 +78,42 @@ def test_gsc_daily_metrics(tmp_db: DatabaseConnection):
         clicks=10,
         ctr=0.1,
         position=3.5,
+        site_url=SITE_A,
     )
 
-    metrics = tmp_db.get_gsc_metrics_for_date("2026-01-01")
+    metrics = tmp_db.get_gsc_metrics_for_date("2026-01-01", site_url=SITE_A)
     assert len(metrics) == 1
     assert metrics[0]["impressions"] == 100
     assert metrics[0]["clicks"] == 10
+
+
+def test_multi_site_isolation(tmp_db: DatabaseConnection):
+    """Same query string for two sites must produce separate rows and never mix."""
+    query = "buy books online"
+
+    qid_a = tmp_db.upsert_gsc_query(query, "2026-01-01", SITE_A)
+    qid_b = tmp_db.upsert_gsc_query(query, "2026-01-01", SITE_B)
+    assert qid_a != qid_b, "Same query for two sites must be separate rows"
+
+    pid_a = tmp_db.upsert_gsc_page("https://bookshopnearme.lk/", "2026-01-01", SITE_A)
+    pid_b = tmp_db.upsert_gsc_page("https://period.lk/", "2026-01-01", SITE_B)
+
+    tmp_db.upsert_gsc_daily_metric("2026-01-01", qid_a, pid_a, 500, 30, 0.06, 2.1, site_url=SITE_A)
+    tmp_db.upsert_gsc_daily_metric("2026-01-01", qid_b, pid_b, 120, 8,  0.07, 3.5, site_url=SITE_B)
+
+    metrics_a = tmp_db.get_gsc_metrics_for_date("2026-01-01", site_url=SITE_A)
+    metrics_b = tmp_db.get_gsc_metrics_for_date("2026-01-01", site_url=SITE_B)
+
+    assert len(metrics_a) == 1
+    assert len(metrics_b) == 1
+    assert metrics_a[0]["impressions"] == 500
+    assert metrics_b[0]["impressions"] == 120
+
+    # get_date_range_exists must also be site-scoped
+    dates_a = tmp_db.get_date_range_exists("2026-01-01", "2026-01-01", site_url=SITE_A)
+    dates_b = tmp_db.get_date_range_exists("2026-01-01", "2026-01-01", site_url=SITE_B)
+    assert "2026-01-01" in dates_a
+    assert "2026-01-01" in dates_b
 
 
 def test_system_settings(tmp_db: DatabaseConnection):

@@ -112,17 +112,19 @@ class SupabaseConnection:
 
     # ── GSC upserts (via RPC for correct first_seen/last_seen semantics) ─────
 
-    def upsert_gsc_query(self, query: str, date: str) -> int:
+    def upsert_gsc_query(self, query: str, date: str, site_url: str) -> int:
         """Insert query or update last_seen. Returns row id."""
         result = self._client.rpc(
-            "upsert_gsc_query", {"p_query": query, "p_date": date}
+            "upsert_gsc_query",
+            {"p_query": query, "p_date": date, "p_site_url": site_url},
         ).execute()
         return _scalar_int(result.data)
 
-    def upsert_gsc_page(self, page_url: str, date: str) -> int:
+    def upsert_gsc_page(self, page_url: str, date: str, site_url: str) -> int:
         """Insert page URL or update last_seen. Returns row id."""
         result = self._client.rpc(
-            "upsert_gsc_page", {"p_page_url": page_url, "p_date": date}
+            "upsert_gsc_page",
+            {"p_page_url": page_url, "p_date": date, "p_site_url": site_url},
         ).execute()
         return _scalar_int(result.data)
 
@@ -135,8 +137,9 @@ class SupabaseConnection:
         clicks: int,
         ctr: float,
         position: float,
+        site_url: str = "",
     ) -> None:
-        """Insert or replace a (date, query_id, page_id) metric row."""
+        """Insert or replace a (site_url, date, query_id, page_id) metric row."""
         self._client.rpc(
             "upsert_gsc_daily_metric",
             {
@@ -147,32 +150,35 @@ class SupabaseConnection:
                 "p_clicks": clicks,
                 "p_ctr": ctr,
                 "p_position": position,
+                "p_site_url": site_url,
             },
         ).execute()
 
     # ── GSC reads ────────────────────────────────────────────────────────────
 
-    def get_date_range_exists(self, start_date: str, end_date: str) -> list[str]:
-        """Return sorted list of distinct dates that already have metrics."""
-        result = (
+    def get_date_range_exists(self, start_date: str, end_date: str, site_url: str = "") -> list[str]:
+        """Return sorted list of distinct dates that already have metrics for this site."""
+        query = (
             self._client.table("gsc_daily_metrics")
             .select("date")
             .gte("date", start_date)
             .lte("date", end_date)
-            .execute()
         )
-        # Deduplicate and normalise to ISO string (Postgres DATE → "YYYY-MM-DD")
+        if site_url:
+            query = query.eq("site_url", site_url)
+        result = query.execute()
         return sorted({row["date"] for row in result.data})
 
-    def get_gsc_metrics_for_date(self, date: str) -> list[dict[str, Any]]:
-        result = (
+    def get_gsc_metrics_for_date(self, date: str, site_url: str = "") -> list[dict[str, Any]]:
+        query = (
             self._client.table("gsc_daily_metrics")
             .select("*, gsc_queries(query), gsc_pages(page_url)")
             .eq("date", date)
             .order("impressions", desc=True)
-            .execute()
         )
-        return result.data
+        if site_url:
+            query = query.eq("site_url", site_url)
+        return query.execute().data
 
     # ── system_settings (stub — not used in Sprint 2) ────────────────────────
 

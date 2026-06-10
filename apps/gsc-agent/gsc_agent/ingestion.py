@@ -12,6 +12,7 @@ def ingest_query_rows(
     db: DatabaseConnection,
     rows: list[dict],
     collection_date: str,
+    site_url: str,
 ) -> int:
     """Parse GSC query+page rows and persist them. Returns records saved."""
     count = 0
@@ -21,8 +22,8 @@ def ingest_query_rows(
             continue
         query_text, page_url = keys[0], keys[1]
 
-        query_id = db.upsert_gsc_query(query=query_text, date=collection_date)
-        page_id = db.upsert_gsc_page(page_url=page_url, date=collection_date)
+        query_id = db.upsert_gsc_query(query=query_text, date=collection_date, site_url=site_url)
+        page_id = db.upsert_gsc_page(page_url=page_url, date=collection_date, site_url=site_url)
 
         db.upsert_gsc_daily_metric(
             date=collection_date,
@@ -32,13 +33,14 @@ def ingest_query_rows(
             clicks=int(row.get("clicks", 0)),
             ctr=float(row.get("ctr", 0.0)),
             position=float(row.get("position", 0.0)),
+            site_url=site_url,
         )
         count += 1
     return count
 
 
-def dates_to_collect(db: DatabaseConnection, lookback_days: int) -> list[str]:
-    """Return dates in the lookback window that haven't been fully collected."""
+def dates_to_collect(db: DatabaseConnection, lookback_days: int, site_url: str) -> list[str]:
+    """Return dates in the lookback window that haven't been fully collected for this site."""
     today = date.today()
     # GSC data is typically 2-3 days delayed; collect up to yesterday
     end = today - timedelta(days=1)
@@ -48,6 +50,7 @@ def dates_to_collect(db: DatabaseConnection, lookback_days: int) -> list[str]:
         db.get_date_range_exists(
             start_date=start.isoformat(),
             end_date=end.isoformat(),
+            site_url=site_url,
         )
     )
 

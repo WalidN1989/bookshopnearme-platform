@@ -116,7 +116,11 @@ def run() -> None:
 
         # ── Date gap detection ────────────────────────────────────────────────
         print("[TRACE 22] calculating missing dates", flush=True)
-        missing_dates = dates_to_collect(db=db, lookback_days=settings.gsc_lookback_days)
+        missing_dates = dates_to_collect(
+            db=db,
+            lookback_days=settings.gsc_lookback_days,
+            site_url=settings.gsc_site_url,
+        )
         logger.info(f"Dates to collect: {missing_dates}")
         print(f"[TRACE 23] missing dates: {missing_dates}", flush=True)
 
@@ -130,7 +134,12 @@ def run() -> None:
                 end_date=collection_date,
             )
             print(f"[TRACE 25] {len(rows)} rows received for {collection_date}", flush=True)
-            saved = ingest_query_rows(db=db, rows=rows, collection_date=collection_date)
+            saved = ingest_query_rows(
+                db=db,
+                rows=rows,
+                collection_date=collection_date,
+                site_url=settings.gsc_site_url,
+            )
             logger.info(f"Saved {saved} records for {collection_date}")
             print(f"[TRACE 26] {saved} records saved for {collection_date}", flush=True)
             total_records += saved

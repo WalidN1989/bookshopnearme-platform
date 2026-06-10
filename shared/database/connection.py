@@ -77,37 +77,37 @@ class DatabaseConnection:
 
     # ── GSC ─────────────────────────────────────────────────────────────────
 
-    def upsert_gsc_query(self, query: str, date: str) -> int:
+    def upsert_gsc_query(self, query: str, date: str, site_url: str) -> int:
         self.conn.execute(
             """
-            INSERT INTO gsc_queries (query, first_seen, last_seen)
-            VALUES (?, ?, ?)
-            ON CONFLICT(query) DO UPDATE SET
+            INSERT INTO gsc_queries (site_url, query, first_seen, last_seen)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(site_url, query) DO UPDATE SET
                 last_seen=excluded.last_seen,
                 updated_at=datetime('now')
             """,
-            (query, date, date),
+            (site_url, query, date, date),
         )
         self.conn.commit()
         row = self.conn.execute(
-            "SELECT id FROM gsc_queries WHERE query=?", (query,)
+            "SELECT id FROM gsc_queries WHERE site_url=? AND query=?", (site_url, query)
         ).fetchone()
         return row["id"]
 
-    def upsert_gsc_page(self, page_url: str, date: str) -> int:
+    def upsert_gsc_page(self, page_url: str, date: str, site_url: str) -> int:
         self.conn.execute(
             """
-            INSERT INTO gsc_pages (page_url, first_seen, last_seen)
-            VALUES (?, ?, ?)
-            ON CONFLICT(page_url) DO UPDATE SET
+            INSERT INTO gsc_pages (site_url, page_url, first_seen, last_seen)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(site_url, page_url) DO UPDATE SET
                 last_seen=excluded.last_seen,
                 updated_at=datetime('now')
             """,
-            (page_url, date, date),
+            (site_url, page_url, date, date),
         )
         self.conn.commit()
         row = self.conn.execute(
-            "SELECT id FROM gsc_pages WHERE page_url=?", (page_url,)
+            "SELECT id FROM gsc_pages WHERE site_url=? AND page_url=?", (site_url, page_url)
         ).fetchone()
         return row["id"]
 
@@ -120,24 +120,37 @@ class DatabaseConnection:
         clicks: int,
         ctr: float,
         position: float,
+        site_url: str = "",
     ) -> None:
         self.conn.execute(
             """
             INSERT INTO gsc_daily_metrics
-                (date, query_id, page_id, impressions, clicks, ctr, position)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(date, query_id, page_id) DO UPDATE SET
+                (site_url, date, query_id, page_id, impressions, clicks, ctr, position)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(site_url, date, query_id, page_id) DO UPDATE SET
                 impressions=excluded.impressions,
                 clicks=excluded.clicks,
                 ctr=excluded.ctr,
                 position=excluded.position,
                 updated_at=datetime('now')
             """,
-            (date, query_id, page_id, impressions, clicks, ctr, position),
+            (site_url, date, query_id, page_id, impressions, clicks, ctr, position),
         )
         self.conn.commit()
 
-    def get_gsc_metrics_for_date(self, date: str) -> list[sqlite3.Row]:
+    def get_gsc_metrics_for_date(self, date: str, site_url: str = "") -> list[sqlite3.Row]:
+        if site_url:
+            return self.conn.execute(
+                """
+                SELECT m.*, q.query, p.page_url
+                FROM gsc_daily_metrics m
+                LEFT JOIN gsc_queries q ON m.query_id = q.id
+                LEFT JOIN gsc_pages p ON m.page_id = p.id
+                WHERE m.date = ? AND m.site_url = ?
+                ORDER BY m.impressions DESC
+                """,
+                (date, site_url),
+            ).fetchall()
         return self.conn.execute(
             """
             SELECT m.*, q.query, p.page_url
@@ -150,11 +163,18 @@ class DatabaseConnection:
             (date,),
         ).fetchall()
 
-    def get_date_range_exists(self, start_date: str, end_date: str) -> list[str]:
-        rows = self.conn.execute(
-            "SELECT DISTINCT date FROM gsc_daily_metrics WHERE date BETWEEN ? AND ? ORDER BY date",
-            (start_date, end_date),
-        ).fetchall()
+    def get_date_range_exists(self, start_date: str, end_date: str, site_url: str = "") -> list[str]:
+        if site_url:
+            rows = self.conn.execute(
+                "SELECT DISTINCT date FROM gsc_daily_metrics "
+                "WHERE date BETWEEN ? AND ? AND site_url = ? ORDER BY date",
+                (start_date, end_date, site_url),
+            ).fetchall()
+        else:
+            rows = self.conn.execute(
+                "SELECT DISTINCT date FROM gsc_daily_metrics WHERE date BETWEEN ? AND ? ORDER BY date",
+                (start_date, end_date),
+            ).fetchall()
         return [r["date"] for r in rows]
 
     # ── content_opportunities ────────────────────────────────────────────────
