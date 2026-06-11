@@ -10,6 +10,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "apps", "mcp"))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "apps", "gsc-agent"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "apps", "seo-agent"))
 
 from shared.database.connection import DatabaseConnection
 

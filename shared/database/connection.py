@@ -163,6 +163,34 @@ class DatabaseConnection:
             (date,),
         ).fetchall()
 
+    def get_gsc_metrics_range(
+        self, site_url: str, start_date: str, end_date: str
+    ) -> list[dict[str, Any]]:
+        """Return all metric rows for a site/date-range in Supabase-compatible nested format."""
+        rows = self.conn.execute(
+            """
+            SELECT m.impressions, m.clicks, m.ctr, m.position,
+                   q.query, p.page_url
+            FROM gsc_daily_metrics m
+            LEFT JOIN gsc_queries q ON m.query_id = q.id
+            LEFT JOIN gsc_pages p ON m.page_id = p.id
+            WHERE m.site_url = ? AND m.date BETWEEN ? AND ?
+            ORDER BY m.impressions DESC
+            """,
+            (site_url, start_date, end_date),
+        ).fetchall()
+        return [
+            {
+                "impressions": r["impressions"],
+                "clicks": r["clicks"],
+                "ctr": r["ctr"],
+                "position": r["position"],
+                "gsc_queries": {"query": r["query"]},
+                "gsc_pages": {"page_url": r["page_url"]},
+            }
+            for r in rows
+        ]
+
     def get_date_range_exists(self, start_date: str, end_date: str, site_url: str = "") -> list[str]:
         if site_url:
             rows = self.conn.execute(
@@ -176,6 +204,101 @@ class DatabaseConnection:
                 (start_date, end_date),
             ).fetchall()
         return [r["date"] for r in rows]
+
+    # ── seo_opportunities ────────────────────────────────────────────────────
+
+    def upsert_seo_opportunity(
+        self,
+        site_url: str,
+        opportunity_type: str,
+        keyword: str,
+        page_url: str,
+        impressions: int,
+        clicks: int,
+        ctr: float,
+        position: float,
+        opportunity_score: float,
+        recommendation: str,
+        metadata_json: str | None = None,
+    ) -> int:
+        import json as _json
+        cur = self.conn.execute(
+            """
+            INSERT INTO seo_opportunities
+                (site_url, opportunity_type, keyword, page_url,
+                 impressions, clicks, ctr, position,
+                 opportunity_score, recommendation, metadata_json)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(site_url, opportunity_type, keyword, page_url) DO UPDATE SET
+                impressions       = excluded.impressions,
+                clicks            = excluded.clicks,
+                ctr               = excluded.ctr,
+                position          = excluded.position,
+                opportunity_score = excluded.opportunity_score,
+                recommendation    = excluded.recommendation,
+                metadata_json     = excluded.metadata_json,
+                updated_at        = datetime('now')
+            """,
+            (
+                site_url, opportunity_type, keyword, page_url,
+                impressions, clicks, ctr, position,
+                opportunity_score, recommendation, metadata_json,
+            ),
+        )
+        self.conn.commit()
+        row = self.conn.execute(
+            "SELECT id FROM seo_opportunities "
+            "WHERE site_url=? AND opportunity_type=? AND keyword=? AND page_url=?",
+            (site_url, opportunity_type, keyword, page_url),
+        ).fetchone()
+        return row["id"]
+
+    def get_seo_opportunities(
+        self,
+        site_url: str,
+        opportunity_type: str | None = None,
+        status: str | None = None,
+        limit: int = 50,
+    ) -> list[dict[str, Any]]:
+        import json as _json
+        sql = (
+            "SELECT * FROM seo_opportunities WHERE site_url=?"
+        )
+        params: list[Any] = [site_url]
+        if opportunity_type:
+            sql += " AND opportunity_type=?"
+            params.append(opportunity_type)
+        if status:
+            sql += " AND status=?"
+            params.append(status)
+        sql += " ORDER BY opportunity_score DESC LIMIT ?"
+        params.append(limit)
+        rows = self.conn.execute(sql, params).fetchall()
+        result = []
+        for r in rows:
+            d = dict(r)
+            if d.get("metadata_json") and isinstance(d["metadata_json"], str):
+                try:
+                    d["metadata_json"] = _json.loads(d["metadata_json"])
+                except Exception:
+                    pass
+            result.append(d)
+        return result
+
+    def get_seo_opportunity_by_id(self, opp_id: int) -> dict[str, Any] | None:
+        import json as _json
+        row = self.conn.execute(
+            "SELECT * FROM seo_opportunities WHERE id=?", (opp_id,)
+        ).fetchone()
+        if row is None:
+            return None
+        d = dict(row)
+        if d.get("metadata_json") and isinstance(d["metadata_json"], str):
+            try:
+                d["metadata_json"] = _json.loads(d["metadata_json"])
+            except Exception:
+                pass
+        return d
 
     # ── content_opportunities ────────────────────────────────────────────────
 

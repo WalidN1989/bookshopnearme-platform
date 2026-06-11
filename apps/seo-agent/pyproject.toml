@@ -1,0 +1,20 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "bookshopnearme-seo-agent"
+version = "0.1.0"
+description = "SEO Intelligence Engine — opportunity detection and scoring for BookShopNearMe sites"
+requires-python = ">=3.12"
+dependencies = [
+    "supabase>=2.0.0",
+    "fastapi>=0.111.0",
+    "uvicorn>=0.30.0",
+]
+
+[project.scripts]
+seo-agent = "seo_agent.agent:run"
+
+[tool.hatch.build.targets.wheel]
+packages = ["seo_agent"]

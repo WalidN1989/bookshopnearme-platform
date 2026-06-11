@@ -181,6 +181,46 @@ MIGRATIONS: list[tuple[int, str, str]] = [
         PRAGMA foreign_keys=ON;
         """,
     ),
+    (
+        3,
+        "seo_opportunities",
+        """
+        CREATE TABLE IF NOT EXISTS seo_opportunities (
+            id                INTEGER PRIMARY KEY AUTOINCREMENT,
+            site_url          TEXT    NOT NULL,
+            opportunity_type  TEXT    NOT NULL
+                              CHECK (opportunity_type IN (
+                                  'NEW_CONTENT',
+                                  'PAGE_OPTIMIZATION',
+                                  'CTR_IMPROVEMENT',
+                                  'RANKING_IMPROVEMENT'
+                              )),
+            keyword           TEXT    NOT NULL,
+            page_url          TEXT    NOT NULL DEFAULT '',
+            impressions       INTEGER NOT NULL DEFAULT 0,
+            clicks            INTEGER NOT NULL DEFAULT 0,
+            ctr               REAL    NOT NULL DEFAULT 0.0,
+            position          REAL    NOT NULL DEFAULT 0.0,
+            opportunity_score REAL    NOT NULL DEFAULT 0.0,
+            recommendation    TEXT    NOT NULL DEFAULT '',
+            status            TEXT    NOT NULL DEFAULT 'pending'
+                              CHECK (status IN ('pending', 'reviewed', 'approved', 'rejected')),
+            metadata_json     TEXT,
+            created_at        TEXT    NOT NULL DEFAULT (datetime('now')),
+            updated_at        TEXT    NOT NULL DEFAULT (datetime('now')),
+            UNIQUE (site_url, opportunity_type, keyword, page_url)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_seo_opp_site_url
+            ON seo_opportunities(site_url);
+        CREATE INDEX IF NOT EXISTS idx_seo_opp_type
+            ON seo_opportunities(opportunity_type);
+        CREATE INDEX IF NOT EXISTS idx_seo_opp_status
+            ON seo_opportunities(status);
+        CREATE INDEX IF NOT EXISTS idx_seo_opp_site_score
+            ON seo_opportunities(site_url, opportunity_score DESC);
+        """,
+    ),
 ]
 
 

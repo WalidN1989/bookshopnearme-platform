@@ -156,6 +156,20 @@ class SupabaseConnection:
 
     # ── GSC reads ────────────────────────────────────────────────────────────
 
+    def get_gsc_metrics_range(
+        self, site_url: str, start_date: str, end_date: str
+    ) -> list[dict[str, Any]]:
+        """Return all metric rows for a site/date-range with query and page_url joined."""
+        result = (
+            self._client.table("gsc_daily_metrics")
+            .select("impressions, clicks, ctr, position, gsc_queries(query), gsc_pages(page_url)")
+            .eq("site_url", site_url)
+            .gte("date", start_date)
+            .lte("date", end_date)
+            .execute()
+        )
+        return result.data
+
     def get_date_range_exists(self, start_date: str, end_date: str, site_url: str = "") -> list[str]:
         """Return sorted list of distinct dates that already have metrics for this site."""
         query = (
@@ -179,6 +193,72 @@ class SupabaseConnection:
         if site_url:
             query = query.eq("site_url", site_url)
         return query.execute().data
+
+    # ── seo_opportunities ────────────────────────────────────────────────────
+
+    def upsert_seo_opportunity(
+        self,
+        site_url: str,
+        opportunity_type: str,
+        keyword: str,
+        page_url: str,
+        impressions: int,
+        clicks: int,
+        ctr: float,
+        position: float,
+        opportunity_score: float,
+        recommendation: str,
+        metadata_json: str | None = None,
+    ) -> int:
+        import json as _json
+        meta = _json.loads(metadata_json) if metadata_json else None
+        result = self._client.rpc(
+            "upsert_seo_opportunity",
+            {
+                "p_site_url": site_url,
+                "p_opportunity_type": opportunity_type,
+                "p_keyword": keyword,
+                "p_page_url": page_url,
+                "p_impressions": impressions,
+                "p_clicks": clicks,
+                "p_ctr": ctr,
+                "p_position": position,
+                "p_opportunity_score": opportunity_score,
+                "p_recommendation": recommendation,
+                "p_metadata_json": meta,
+            },
+        ).execute()
+        return _scalar_int(result.data)
+
+    def get_seo_opportunities(
+        self,
+        site_url: str,
+        opportunity_type: str | None = None,
+        status: str | None = None,
+        limit: int = 50,
+    ) -> list[dict[str, Any]]:
+        query = (
+            self._client.table("seo_opportunities")
+            .select("*")
+            .eq("site_url", site_url)
+            .order("opportunity_score", desc=True)
+            .limit(limit)
+        )
+        if opportunity_type:
+            query = query.eq("opportunity_type", opportunity_type)
+        if status:
+            query = query.eq("status", status)
+        return query.execute().data
+
+    def get_seo_opportunity_by_id(self, opp_id: int) -> dict[str, Any] | None:
+        result = (
+            self._client.table("seo_opportunities")
+            .select("*")
+            .eq("id", opp_id)
+            .limit(1)
+            .execute()
+        )
+        return result.data[0] if result.data else None
 
     # ── system_settings (stub — not used in Sprint 2) ────────────────────────
 
