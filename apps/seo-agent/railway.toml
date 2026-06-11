@@ -1,0 +1,13 @@
+[build]
+builder = "nixpacks"
+buildCommand = "find . -name '*.pyc' -delete && find . -name __pycache__ -type d -exec rm -rf {} + 2>/dev/null; pip install . && pip install apps/mcp && pip install apps/gsc-agent && pip install apps/seo-agent"
+
+[deploy]
+startCommand = "python -B -m seo_agent.agent"
+cronSchedule = "0 7 * * *"
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
+
+[environments.production.variables]
+ENVIRONMENT = "production"
+LOG_LEVEL = "INFO"
