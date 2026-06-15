@@ -20,7 +20,7 @@ import os
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
 from shared.logging.logger import get_logger
 
@@ -114,7 +114,7 @@ def resolve_oauth_credentials():
     logger.info("[AUTH] Access token refresh successful")
 
     expires_in = token_data.get("expires_in", 3600)
-    expiry = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
+    expiry = datetime.utcnow() + timedelta(seconds=expires_in)
 
     return Credentials(
         token=access_token,
