@@ -15,7 +15,12 @@ Run scripts/gsc_oauth_setup.py once locally to obtain the refresh token.
 
 from __future__ import annotations
 
+import json
 import os
+import urllib.error
+import urllib.parse
+import urllib.request
+from datetime import datetime, timedelta, timezone
 
 from shared.logging.logger import get_logger
 
@@ -29,15 +34,13 @@ def resolve_oauth_credentials():
     """
     Build and return a refreshed google.oauth2.credentials.Credentials object.
 
-    Logs startup diagnostics:
-      - Which env vars are present (secrets masked)
-      - Whether the access token refresh succeeded
+    Uses a direct HTTP POST to the token endpoint instead of google-auth's
+    reauth layer, which adds extra parameters that Google rejects for
+    desktop OAuth clients in newer library versions.
 
-    Raises RuntimeError if any required env var is missing.
-    Raises google.auth.exceptions.RefreshError if the token is invalid or revoked.
+    Raises RuntimeError if any required env var is missing or the refresh fails.
     """
     try:
-        from google.auth.transport.requests import Request
         from google.oauth2.credentials import Credentials
     except ImportError as exc:
         raise RuntimeError(
@@ -71,25 +74,54 @@ def resolve_oauth_credentials():
         f"refresh_token={'*' * 8}{refresh_token[-4:]}"
     )
 
-    # ── Build credentials object ─────────────────────────────────────────────
-    creds = Credentials(
-        token=None,                 # no cached access token — force a fresh one
-        refresh_token=refresh_token,
-        token_uri=TOKEN_URI,
-        client_id=client_id,
-        client_secret=client_secret,
-        scopes=SCOPES,
+    # ── Direct HTTP token refresh (bypasses google-auth reauth layer) ────────
+    post_data = urllib.parse.urlencode({
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "refresh_token": refresh_token,
+        "grant_type": "refresh_token",
+    }).encode("utf-8")
+
+    req = urllib.request.Request(
+        TOKEN_URI,
+        data=post_data,
+        method="POST",
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
     )
 
-    # ── Force immediate token refresh — validates all three values right now ─
     try:
-        creds.refresh(Request())
-        logger.info("[AUTH] Access token refresh successful")
-    except Exception as exc:
+        with urllib.request.urlopen(req) as resp:
+            token_data = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        try:
+            error_body = json.loads(exc.read().decode("utf-8"))
+        except Exception:
+            error_body = {"error": str(exc)}
         raise RuntimeError(
-            f"OAuth token refresh failed: {exc}\n"
+            f"OAuth token refresh failed: {error_body}\n"
             "The refresh token may be expired or revoked. "
             "Re-run scripts/gsc_oauth_setup.py to generate a new one."
         ) from exc
 
-    return creds
+    access_token = token_data.get("access_token")
+    if not access_token:
+        raise RuntimeError(
+            f"OAuth token refresh returned no access_token: {token_data}\n"
+            "The refresh token may be expired or revoked. "
+            "Re-run scripts/gsc_oauth_setup.py to generate a new one."
+        )
+
+    logger.info("[AUTH] Access token refresh successful")
+
+    expires_in = token_data.get("expires_in", 3600)
+    expiry = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
+
+    return Credentials(
+        token=access_token,
+        refresh_token=token_data.get("refresh_token", refresh_token),
+        token_uri=TOKEN_URI,
+        client_id=client_id,
+        client_secret=client_secret,
+        scopes=SCOPES,
+        expiry=expiry,
+    )
