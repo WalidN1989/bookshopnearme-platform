@@ -36,9 +36,18 @@ def main() -> None:
     )
     parser.add_argument(
         "--client-secrets",
-        required=True,
         metavar="PATH",
         help="Path to the OAuth 2.0 client secrets JSON downloaded from Google Cloud Console.",
+    )
+    parser.add_argument(
+        "--client-id",
+        metavar="CLIENT_ID",
+        help="OAuth Client ID (alternative to --client-secrets).",
+    )
+    parser.add_argument(
+        "--client-secret",
+        metavar="CLIENT_SECRET",
+        help="OAuth Client Secret (alternative to --client-secrets).",
     )
     parser.add_argument(
         "--port",
@@ -48,25 +57,33 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    if not os.path.exists(args.client_secrets):
-        print(f"ERROR: File not found: {args.client_secrets}", file=sys.stderr)
-        sys.exit(1)
-
-    # ── Validate file structure ───────────────────────────────────────────────
-    with open(args.client_secrets) as f:
-        raw = json.load(f)
-
-    key = next((k for k in ("installed", "web") if k in raw), None)
-    if key is None:
+    # ── Resolve client_id / client_secret ─────────────────────────────────────
+    if args.client_id and args.client_secret:
+        client_id = args.client_id
+        client_secret = args.client_secret
+    elif args.client_secrets:
+        if not os.path.exists(args.client_secrets):
+            print(f"ERROR: File not found: {args.client_secrets}", file=sys.stderr)
+            sys.exit(1)
+        with open(args.client_secrets) as f:
+            raw = json.load(f)
+        key = next((k for k in ("installed", "web") if k in raw), None)
+        if key is None:
+            print(
+                "ERROR: client secrets file does not contain an 'installed' or 'web' key.\n"
+                "Download type must be 'Desktop app' from Google Cloud Console → Credentials.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        client_id = raw[key]["client_id"]
+        client_secret = raw[key]["client_secret"]
+    else:
         print(
-            "ERROR: client secrets file does not contain an 'installed' or 'web' key.\n"
-            "Download type must be 'Desktop app' from Google Cloud Console → Credentials.",
+            "ERROR: provide either --client-secrets PATH\n"
+            "       or both --client-id CLIENT_ID --client-secret CLIENT_SECRET",
             file=sys.stderr,
         )
         sys.exit(1)
-
-    client_id = raw[key]["client_id"]
-    client_secret = raw[key]["client_secret"]
 
     # ── Import oauthlib ───────────────────────────────────────────────────────
     try:
@@ -85,7 +102,16 @@ def main() -> None:
     print("Log in with the Google account that owns the Search Console property.")
     print()
 
-    flow = InstalledAppFlow.from_client_secrets_file(args.client_secrets, scopes=SCOPES)
+    client_config = {
+        "installed": {
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+            "token_uri": "https://oauth2.googleapis.com/token",
+            "redirect_uris": ["http://localhost"],
+        }
+    }
+    flow = InstalledAppFlow.from_client_config(client_config, scopes=SCOPES)
 
     try:
         creds = flow.run_local_server(
